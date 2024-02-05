@@ -12,33 +12,38 @@ def main():
     st.title("Analise de WBS e PSE")
 
     # Read CSV file
-    file_path = st.file_uploader("Selecione a planilha a ser analisada", type=["csv"])
-    if file_path is not None:
-        df = pd.read_csv(file_path)
+    fileDict = {}
+    uploaded_files = st.file_uploader(
+        "Selecione a planilha a ser analisada", type=["csv"], accept_multiple_files=True
+    )
 
-        st.write("### Data Overview")
-        st.write(df.head())
-        isPSE = "PSE" in df.columns
+    names = []
+    pse, wbs = None, None
 
-        names = df["Nome"].unique()
-        selected_name = st.selectbox("Selecionar usuario", names)
+    if uploaded_files:
+        for f in uploaded_files:
+            df = pd.read_csv(f)
+            names = df["Nome"].unique()
+            df["Carimbo de data/hora"] = df["Carimbo de data/hora"].apply(parse_date)
+            df.set_index("Carimbo de data/hora", inplace=True)
+            if "PSE" in df.columns:
+                pse = df
+            else:
+                wbs = df
 
-        filtered_df = df[df["Nome"] == selected_name]
-        st.write(filtered_df)
+        selected_name = st.sidebar.selectbox("Selecionar usuario", names)
 
-        chart_data = filtered_df.copy()
-        chart_data["Carimbo de data/hora"] = chart_data["Carimbo de data/hora"].apply(
-            parse_date
-        )
-        chart_data.set_index("Carimbo de data/hora", inplace=True)
+        pse_check = st.sidebar.checkbox("PSE", disabled=(pse is None))
+        wbs_check = st.sidebar.checkbox("WBS", disabled=(wbs is None))
 
-        chart_name = "PSE" if isPSE else "WBS"
-        st.write(f"### Gráficos - {chart_name} - {selected_name}")
+        if pse_check:
 
-        if isPSE:
-            st.line_chart(chart_data["PSE"])
-            st.bar_chart(chart_data["PSE"])
-        else:
+            filtered_PSE = pse[pse["Nome"] == selected_name]
+            chart_data_PSE = filtered_PSE.copy()
+            st.write("### PSE: ")
+            st.bar_chart(chart_data_PSE["PSE"])
+
+        if wbs_check:
             chart_metric_options = [
                 "Fadiga",
                 "Qualidade do sono",
@@ -46,12 +51,30 @@ def main():
                 "Nível de estresse",
                 "Humor",
                 "PSR",
+                "Todas",
             ]
-            selected_metric = st.selectbox(
+            selected_metric = st.sidebar.selectbox(
                 "Selecionar uma métrica", chart_metric_options
             )
-            st.line_chart(chart_data[selected_metric])
-            st.bar_chart(chart_data[selected_metric])
+            filtered_WBS = wbs[wbs["Nome"] == selected_name]
+            chart_data_WBS = filtered_WBS.copy()
+
+            if selected_metric == "Todas":
+                for c in (
+                    "Fadiga",
+                    "Qualidade do sono",
+                    "Dor muscular geral",
+                    "Nível de estresse",
+                    "Humor",
+                    "PSR",
+                ):
+                    st.write(f"### {c}: ")
+
+                    st.bar_chart(chart_data_WBS[c])
+            else:
+                st.write(f"### {selected_metric}: ")
+
+                st.bar_chart(chart_data_WBS[selected_metric])
 
 
 if __name__ == "__main__":
